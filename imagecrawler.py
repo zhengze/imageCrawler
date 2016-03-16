@@ -73,10 +73,14 @@ def download_images(images_url):
                 r = requests.get(image_source, stream=True)
 
                 #download images
-                with open(os.path.join(DOWNLOAD_DIR, image_name), "wb") as fd:
-                    for chunk in r.iter_content():
-                        fd.write(chunk)
-                print "%s has been downloaded" %image_name
+                fname = os.path.join(DOWNLOAD_DIR, image_name)
+                if not os.path.exists(fname):
+                    with open(fname, "wb") as fd:
+                        for chunk in r.iter_content():
+                            fd.write(chunk)
+                    print "%s has been downloaded" %image_name
+                else:
+                    continue
             else:
                 return None
             
@@ -86,8 +90,9 @@ if __name__ == "__main__":
     pageLinks = get_page_links1(webUrl)
     htmlUrl = "http://www.meizitu.com/a/list_1_1.html"
     page_link = "http://www.meizitu.com/a/5328.html"
-    for pageLink in pageLinks:
-        image_urls = get_page_links2(pageLink)
+    for index in xrange(len(pageLinks)):
+        print "Starting to crawl page: %s" %(index+1)
+        image_urls = get_page_links2(pageLinks[index])
         for image_url in image_urls:
             download_images(image_url)
 
