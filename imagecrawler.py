@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 import re
 import os
 import time
-from multiprocessing import Pool, Process, Queue
+from multiprocessing import Pool, Process, Queue, Manager
 import signal
 import sys
 
@@ -24,9 +24,10 @@ DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 HOST = "http://www.meizitu.com"
 PROCESS_NUM = 2
 
-page_link1_queue = Queue()
-page_link2_queue = Queue()
-download_queue = Queue()
+manager = Manager()
+page_link1_queue = manager.Queue()
+page_link2_queue = manager.Queue()
+download_queue = manager.Queue()
 
 
 def get_page_links1(webUrl):
@@ -120,6 +121,7 @@ def process_task():
         link2_process.start()
         link2_process.join()
 
+        '''
         processes = []
         for i in xrange(PROCESS_NUM):
             download_process = Process(target=download_images)
@@ -130,6 +132,20 @@ def process_task():
 
         for p in processes:
             p.join()
+
+        pool1 = Pool(2)
+        for i in xrange(2):
+            pool1.apply_async(get_page_links2)
+        pool1.close()
+        pool1.join()
+        '''
+
+
+        pool2 = Pool(2)
+        for i in xrange(2):
+            pool2.apply_async(get_page_links2)
+        pool2.close()
+        pool2.join()
 
         print 'All work done.'
     except KeyboardInterrupt:
