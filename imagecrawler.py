@@ -14,9 +14,19 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import os
+import time
+from multiprocessing import Pool, Process, Queue
+import signal
+import sys
 
 BASE_DIR = os.getcwd()
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")    
+HOST = "http://www.meizitu.com"
+PROCESS_NUM = 2
+
+page_link1_queue = Queue()
+page_link2_queue = Queue()
+download_queue = Queue()
 
 def get_page_links1(webUrl):
     '''
@@ -36,8 +46,9 @@ def get_page_links1(webUrl):
             pageLinks = []
             for index in xrange(1, pageNumber+1):
                 pageLink = "%s"*4 %(webUrl, m.group(1), index, m.group(3))
-                pageLinks.append(pageLink)
-            return pageLinks
+                #pageLinks.append(pageLink)
+                page_link1_queue.put(pageLink)
+            return page_link1_queue
         else:
             return None
 
@@ -50,8 +61,9 @@ def get_page_links2(pageLink):
         picture_divs = soup.find_all("div", {"class":"pic"})
         for picture_div in picture_divs:
             picture_url = picture_div.find("a").get("href")
-            picture_urls.append(picture_url)
-        return picture_urls
+            #picture_urls.append(picture_url)
+            page_link2_queue.put(picture_url)
+        return page_link2_queue
     else:
         return None
 
@@ -83,18 +95,53 @@ def download_images(images_url):
                     continue
             else:
                 return None
-            
-    
-if __name__ == "__main__":
-    webUrl = "http://www.meizitu.com"
-    pageLinks = get_page_links1(webUrl)
-    htmlUrl = "http://www.meizitu.com/a/list_1_1.html"
-    page_link = "http://www.meizitu.com/a/5328.html"
+
+def crawl_main():
+    pageLinks = get_page_links1(HOST)
+    time.sleep(1)   
     for index in xrange(len(pageLinks)):
         print "Starting to crawl page: %s" %(index+1)
         image_urls = get_page_links2(pageLinks[index])
         for image_url in image_urls:
             download_images(image_url)
 
+def process_task():
+    '''
+    subprocess for crawl_main
+    '''
+    try:
+        #link1_process = Process(target=get_page_links1, args=(HOST, ))
+        get_page_links1(HOST)
 
+        a = page_link1_queue.get()
+        link2_process = Process(target=get_page_links2, args=(a, ))
+
+        b = page_link2_queue.get()
+        download_process = Process(target=download_images, args=(b, ))
+        processes = [link1_porcess, link2_process, download_process]
+        for p in processes:
+            print "process %s starts..." %os.getpid()
+            p.start()
+
+        for p in processes:
+            p.join()
+            #p.terminate()
+
+        print 'All work done.'
+    except KeyboardInterrupt:
+        sys.exit(0)
     
+
+if __name__ == "__main__":
+    signal.signal(signal.SIGINT, process_task)
+    signal.signal(signal.SIGTERM, process_task)
+
+    start = time.time()
+
+    process_task()
+
+    end = time.time()
+    running_time = end - start
+    print "The programe's running time:%s" %running_time
+
+
