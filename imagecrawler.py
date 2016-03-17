@@ -28,6 +28,7 @@ page_link1_queue = Queue()
 page_link2_queue = Queue()
 download_queue = Queue()
 
+
 def get_page_links1(webUrl):
     '''
         Description: get images' links
@@ -68,6 +69,7 @@ def get_page_links2(pageLink):
         return None
 
 def download_images(images_url):
+    print "download process id: %s" %os.getpid()
     print "Starting to crawl : %s" %images_url
     if images_url:
         response = requests.get(images_url)
@@ -110,22 +112,18 @@ def process_task():
     subprocess for crawl_main
     '''
     try:
-        #link1_process = Process(target=get_page_links1, args=(HOST, ))
         get_page_links1(HOST)
 
         a = page_link1_queue.get()
         link2_process = Process(target=get_page_links2, args=(a, ))
+        link2_process.start()
+        link2_process.join()
 
-        b = page_link2_queue.get()
-        download_process = Process(target=download_images, args=(b, ))
-        processes = [link1_porcess, link2_process, download_process]
-        for p in processes:
-            print "process %s starts..." %os.getpid()
-            p.start()
-
-        for p in processes:
-            p.join()
-            #p.terminate()
+        for i in xrange(PROCESS_NUM):
+            b = page_link2_queue.get()
+            download_process = Process(target=download_images, args=(b, ))
+            download_process.start()
+            download_process.join()
 
         print 'All work done.'
     except KeyboardInterrupt:
