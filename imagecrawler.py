@@ -56,6 +56,7 @@ def get_page_links1(webUrl):
 
 def get_page_links2():
     pageLink = page_link1_queue.get()
+    print "page links2 process id:%s" %os.getpid()
     print "Starting to crawl : %s" %pageLink
     if pageLink:
         picture_urls = []  
@@ -69,6 +70,13 @@ def get_page_links2():
         return page_link2_queue
     else:
         return None
+
+def link2_middleware():
+    '''middleware for get link of images html'''
+    print '**************link2_middleware*************'
+    while 1:
+        time.sleep(1)
+        get_page_links2()
 
 def download_images():
     images_url = page_link2_queue.get()
@@ -101,7 +109,15 @@ def download_images():
             else:
                 return None
 
+def download_middleware():
+    '''middleware for download images'''
+    while 1:
+        print '***********download_middleware***********'
+        time.sleep(1)
+        download_images()
+
 def crawl_main():
+    print "crawl_main pid:%s" %os.getpid()
     pageLinks = get_page_links1(HOST)
     time.sleep(1)   
     for index in xrange(len(pageLinks)):
@@ -117,11 +133,11 @@ def process_task():
     try:
         get_page_links1(HOST)
 
+        '''
         link2_process = Process(target=get_page_links2)
         link2_process.start()
         link2_process.join()
 
-        '''
         processes = []
         for i in xrange(PROCESS_NUM):
             download_process = Process(target=download_images)
@@ -133,17 +149,18 @@ def process_task():
         for p in processes:
             p.join()
 
-        pool1 = Pool(2)
-        for i in xrange(2):
-            pool1.apply_async(get_page_links2)
-        pool1.close()
-        pool1.join()
         '''
 
+        pool1 = Pool(PROCESS_NUM)
+        for i in xrange(PROCESS_NUM):
+            pool1.apply_async(link2_middleware)
 
-        pool2 = Pool(2)
-        for i in xrange(2):
-            pool2.apply_async(get_page_links2)
+        pool2 = Pool(PROCESS_NUM)
+        for i in xrange(PROCESS_NUM):
+            pool2.apply_async(download_middleware)
+
+        pool1.close()
+        pool1.join()
         pool2.close()
         pool2.join()
 
