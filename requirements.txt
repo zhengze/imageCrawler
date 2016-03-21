@@ -1,4 +1,4 @@
-requests=2.2.1
+requests==2.2.1
 bs4==0.0.1
 SQLAlchemy==0.9.9
 sqlalchemy-migrate==0.10.0
