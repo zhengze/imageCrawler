@@ -33,10 +33,12 @@ def init_db():
 def drop_db():
     BaseModel.metadata.drop_all(engine)
 
+
 class FirstLevelLinks(BaseModel):
     __tablename__ = 'first_level_links' 
-    
-    url = Column(String, primary_key=True, nullable=False)
+
+    id = Column(Integer, primary_key=True, nullable=False)
+    url = Column(String, nullable=False)
 
     def __repr__(self):
         return "%s" %self.url
@@ -45,7 +47,8 @@ class FirstLevelLinks(BaseModel):
 class SecondLevelLinks(BaseModel):
     __tablename__ = 'second_level_links' 
 
-    url = Column(String, primary_key=True, nullable=False)
+    id = Column(Integer, primary_key=True, nullable=False)
+    url = Column(String, nullable=False)
 
     def __repr__(self):
         return "%s" %self.url
@@ -57,8 +60,8 @@ class ImageInfo(BaseModel):
     id = Column(Integer, primary_key=True, nullable=False)
     md5 = Column(String)
     name = Column(String)
-    first_level_link = Column(String, ForeignKey('first_level_links.url'))
-    second_level_link = Column(String, ForeignKey('second_level_links.url'))
+    first_level_link_id = Column(String, ForeignKey('first_level_links.id'))
+    second_level_link_id = Column(String, ForeignKey('second_level_links.id'))
     created = Column(TIMESTAMP, default=datetime.datetime.now())
     updated = Column(TIMESTAMP)
     
