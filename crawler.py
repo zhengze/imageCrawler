@@ -21,6 +21,8 @@ import sys
 import logging
 from task import UrlThread, DownloadThread
 from config import *
+from models import (init_db, session, ImageInfo,\
+    FirstLevelLinks, SecondLevelLinks)
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,7 @@ def get_page_links1(webUrl):
     '''
         Description: get images' links
     '''
+    init_db()
     webList = []
     htmlContent = requests.get(webUrl)
     soup = BeautifulSoup(htmlContent.text, "html.parser")
@@ -40,11 +43,20 @@ def get_page_links1(webUrl):
         m = re.match(regex, endPageLink)
         if m:
             pageNumber = int(m.groups()[1])  #get page number
-            pageLinks = []
+            #pageLinks = []
             for index in xrange(1, pageNumber+1):
                 pageLink = "%s"*4 %(webUrl, m.group(1), index, m.group(3))
                 #pageLinks.append(pageLink)
                 page_link1_queue.put(pageLink)
+                query = session.query(FirstLevelLinks)
+                query_result = query.get(pageLink)
+                if query_result:
+                    continue 
+                else:
+                    first_level_links = FirstLevelLinks(url=pageLink)
+                    session.add(first_level_links)
+            session.flush()
+            session.commit()
             return page_link1_queue
         else:
             return None
@@ -54,14 +66,25 @@ def get_page_links2():
     print "page links2 process id:%s" %os.getpid()
     print "Starting to crawl : %s" %pageLink
     if pageLink:
-        picture_urls = []  
+        #picture_urls = []  
         response = requests.get(pageLink) 
         soup = BeautifulSoup(response.text, "html.parser")
         picture_divs = soup.find_all("div", {"class":"pic"})
         for picture_div in picture_divs:
             picture_url = picture_div.find("a").get("href")
-            #picture_urls.append(picture_url)
             page_link2_queue.put(picture_url)
+            #picture_urls.append(picture_url)
+
+            query = session.query(SecondLevelLinks)
+            query_result = query.get(picture_url)
+            if query_result:
+                continue
+            else:
+                second_level_links = SecondLevelLinks(url=picture_url)
+                session.add(second_level_links)
+        session.flush()
+        session.commit()
+
         return page_link2_queue
     else:
         return None
@@ -98,8 +121,9 @@ def download_images():
                     with open(fname, "wb") as fd:
                         for chunk in r.iter_content():
                             fd.write(chunk)
-                    print "%s has been downloaded" %image_name
+                    print "%s has been downloaded." %image_name
                 else:
+                    print "%s already exists." %image_name
                     continue
             else:
                 return None
