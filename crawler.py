@@ -21,6 +21,7 @@ import sys
 import logging
 from task import UrlThread, DownloadThread
 from config import *
+from utils import create_md5
 from models import (init_db, session, ImageInfo,\
     FirstLevelLinks, SecondLevelLinks)
 
@@ -32,7 +33,6 @@ def get_page_links1(webUrl):
         Description: get images' links
     '''
     init_db()
-    webList = []
     htmlContent = requests.get(webUrl)
     soup = BeautifulSoup(htmlContent.text, "html.parser")
     wp_page_numbers_div = soup.find("div", {"id":"wp_page_numbers"})
@@ -49,10 +49,11 @@ def get_page_links1(webUrl):
                 #pageLinks.append(pageLink)
                 page_link1_queue.put(pageLink)
                 query = session.query(FirstLevelLinks)
-                query_result = query.get(pageLink)
+                query_result = query.filter(FirstLevelLinks.url==pageLink).first()
                 if query_result:
                     continue 
                 else:
+                    print '=========================='
                     first_level_links = FirstLevelLinks(url=pageLink)
                     session.add(first_level_links)
             session.flush()
@@ -72,11 +73,11 @@ def get_page_links2():
         picture_divs = soup.find_all("div", {"class":"pic"})
         for picture_div in picture_divs:
             picture_url = picture_div.find("a").get("href")
-            page_link2_queue.put(picture_url)
+            page_link2_queue.put({pageLink:picture_url})
             #picture_urls.append(picture_url)
 
             query = session.query(SecondLevelLinks)
-            query_result = query.get(picture_url)
+            query_result = query.filter(SecondLevelLinks.url==picture_url).first()
             if query_result:
                 continue
             else:
@@ -97,8 +98,9 @@ def link2_middleware():
         get_page_links2()
 
 def download_images():
-    images_url = page_link2_queue.get()
     print "download process id: %s" %os.getpid()
+    page_link = page_link2_queue.get().keys()[0]
+    images_url = page_link2_queue.get().values()[0]
     print "Starting to crawl : %s" %images_url
     if images_url:
         response = requests.get(images_url)
@@ -122,11 +124,20 @@ def download_images():
                         for chunk in r.iter_content():
                             fd.write(chunk)
                     print "%s has been downloaded." %image_name
+                    md5 = create_md5(fname)
+                    #link1_id = session.query(FirstLevelLinks).filter(FirstLevelLinks.url==page_link).first().id
+                    #link2_id = session.query(SecondLevelLinks).filter(SecondLevelLinks.url==images_url).first().id
+
+                    #image_info = ImageInfo(name=image_name, md5=md5, first_level_link_id=link1_id, second_level_link_id=link2_id)
+                    #session.add(image_info)
+                    #session.flush()
+                    #session.commit()
                 else:
                     print "%s already exists." %image_name
                     continue
             else:
                 return None
+
 
 def download_middleware():
     '''middleware for download images'''
