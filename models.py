@@ -60,8 +60,9 @@ class ImageInfo(BaseModel):
     id = Column(Integer, primary_key=True, nullable=False)
     md5 = Column(String)
     name = Column(String)
-    first_level_link_id = Column(String, ForeignKey('first_level_links.id'))
-    second_level_link_id = Column(String, ForeignKey('second_level_links.id'))
+    url = Column(String)
+    first_level_link_id = Column(Integer, ForeignKey('first_level_links.id'))
+    second_level_link_id = Column(Integer, ForeignKey('second_level_links.id'))
     created = Column(TIMESTAMP, default=datetime.datetime.now())
     updated = Column(TIMESTAMP)
     
