@@ -43,7 +43,6 @@ def get_page_links1(webUrl):
         m = re.match(regex, endPageLink)
         if m:
             pageNumber = int(m.groups()[1])  #get page number
-            #pageLinks = []
             for index in xrange(1, pageNumber+1):
                 pageLink = "%s"*4 %(webUrl, m.group(1), index, m.group(3))
                 #pageLinks.append(pageLink)
@@ -53,7 +52,6 @@ def get_page_links1(webUrl):
                 if query_result:
                     continue 
                 else:
-                    print '=========================='
                     first_level_links = FirstLevelLinks(url=pageLink)
                     session.add(first_level_links)
             session.flush()
@@ -73,7 +71,7 @@ def get_page_links2():
         picture_divs = soup.find_all("div", {"class":"pic"})
         for picture_div in picture_divs:
             picture_url = picture_div.find("a").get("href")
-            page_link2_queue.put({pageLink:picture_url})
+            page_link2_queue.put(picture_url)
             #picture_urls.append(picture_url)
 
             query = session.query(SecondLevelLinks)
@@ -99,8 +97,7 @@ def link2_middleware():
 
 def download_images():
     print "download process id: %s" %os.getpid()
-    page_link = page_link2_queue.get().keys()[0]
-    images_url = page_link2_queue.get().values()[0]
+    images_url = page_link2_queue.get()
     print "Starting to crawl : %s" %images_url
     if images_url:
         response = requests.get(images_url)
@@ -117,23 +114,29 @@ def download_images():
                     m.group(6), m.group(8), m.group(9)) 
                 r = requests.get(image_source, stream=True)
 
-                #download images
                 fname = os.path.join(DOWNLOAD_DIR, image_name)
+
+                md5 = create_md5(fname) #create md5 for picture
+                query_result = session.query(ImageInfo).filter_by(md5=md5).all()
+                if not query_result:
+                    #link1_id = session.query(FirstLevelLinks).filter(FirstLevelLinks.url==page_link).first().id
+                    link2_id = session.query(SecondLevelLinks).filter(SecondLevelLinks.url==images_url).first().id
+
+                    image_info = ImageInfo(name=image_name, md5=md5, url=image_source, second_level_link_id=link2_id)
+                    session.add(image_info)
+                    session.flush()
+                    session.commit()
+                    
+                #download images
                 if not os.path.exists(fname):
                     with open(fname, "wb") as fd:
                         for chunk in r.iter_content():
                             fd.write(chunk)
                     print "%s has been downloaded." %image_name
-                    md5 = create_md5(fname)
-                    #link1_id = session.query(FirstLevelLinks).filter(FirstLevelLinks.url==page_link).first().id
-                    #link2_id = session.query(SecondLevelLinks).filter(SecondLevelLinks.url==images_url).first().id
 
-                    #image_info = ImageInfo(name=image_name, md5=md5, first_level_link_id=link1_id, second_level_link_id=link2_id)
-                    #session.add(image_info)
-                    #session.flush()
-                    #session.commit()
                 else:
                     print "%s already exists." %image_name
+                        
                     continue
             else:
                 return None
