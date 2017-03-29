@@ -27,13 +27,19 @@ from models import (init_db, session, ImageInfo,\
 
 logger = logging.getLogger(__name__)
 
+headers = {
+    'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Encoding':'gzip, deflate, sdch',
+    'Accept-Language':'zh-CN,zh;q=0.8',
+    'User-Agent':'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.110 Safari/537.36'
+}
 
 def get_page_links1(webUrl):
     '''
-        Description: get images' links
+        Description: get images' first layer links
     '''
     init_db()
-    htmlContent = requests.get(webUrl)
+    htmlContent = requests.get(webUrl, headers=headers)
     soup = BeautifulSoup(htmlContent.text, "html.parser")
     wp_page_numbers_div = soup.find("div", {"id":"wp_page_numbers"})
     endPageTag = wp_page_numbers_div.find_all("a")[-1]
@@ -61,12 +67,15 @@ def get_page_links1(webUrl):
             return None
 
 def get_page_links2():
+    '''
+        Description: get images' second layer links
+    '''
     pageLink = page_link1_queue.get()
     print "page links2 process id:%s" %os.getpid()
     print "Starting to crawl : %s" %pageLink
     if pageLink:
         #picture_urls = []  
-        response = requests.get(pageLink) 
+        response = requests.get(pageLink, headers=headers) 
         soup = BeautifulSoup(response.text, "html.parser")
         picture_divs = soup.find_all("div", {"class":"pic"})
         for picture_div in picture_divs:
@@ -100,7 +109,7 @@ def download_images():
     images_url = page_link2_queue.get()
     print "Starting to crawl : %s" %images_url
     if images_url:
-        response = requests.get(images_url)
+        response = requests.get(images_url, headers=headers)
         soup = BeautifulSoup(response.text, "html.parser")
         image_div = soup.find("div", {"id":"picture"})
         image_links = image_div.find_all("img")
@@ -112,9 +121,20 @@ def download_images():
             if m:
                 image_name = "%s_%s_%s_%s%s" %(m.group(2), m.group(4), \
                     m.group(6), m.group(8), m.group(9)) 
-                r = requests.get(image_source, stream=True)
+                r = requests.get(image_source, headers=headers, stream=True)
 
                 fname = os.path.join(DOWNLOAD_DIR, image_name)
+
+                #download images
+                if not os.path.exists(fname):
+                    with open(fname, "wb") as fd:
+                        for chunk in r.iter_content():
+                            fd.write(chunk)
+                    print "%s has been downloaded." %image_name
+
+                else:
+                    print "%s already exists." %image_name
+                    continue
 
                 md5 = create_md5(fname) #create md5 for picture
                 query_result = session.query(ImageInfo).filter_by(md5=md5).all()
@@ -127,17 +147,6 @@ def download_images():
                     session.flush()
                     session.commit()
                     
-                #download images
-                if not os.path.exists(fname):
-                    with open(fname, "wb") as fd:
-                        for chunk in r.iter_content():
-                            fd.write(chunk)
-                    print "%s has been downloaded." %image_name
-
-                else:
-                    print "%s already exists." %image_name
-                        
-                    continue
             else:
                 return None
 
